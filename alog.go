@@ -30,10 +30,12 @@ func New(w io.Writer) *Alog {
 		w = os.Stdout
 	}
 	ch := make(chan string)
+	errCh := make(chan error)
 	return &Alog{
-		m:     &mt,
-		dest:  w,
-		msgCh: ch,
+		m:       &mt,
+		dest:    w,
+		msgCh:   ch,
+		errorCh: errCh,
 	}
 }
 
