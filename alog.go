@@ -52,16 +52,11 @@ func (al Alog) Start() {
 		select {
 		case msg := <-al.msgCh:
 			wg.Add(1)
-			go func(message string, wg *sync.WaitGroup) {
-				al.write(message, wg)
-			}(msg, wg)
+			go al.write(msg, wg)
 
-		case stp := <-al.shutdownCh:
-			fmt.Println("Stop", stp)
+		case <-al.shutdownCh:
 			wg.Wait()
 			al.shutdown()
-			break
-
 		}
 	}
 }
@@ -74,21 +69,24 @@ func (al Alog) formatMessage(msg string) string {
 }
 
 func (al Alog) write(msg string, wg *sync.WaitGroup) {
+	defer wg.Done()
 	formatted := al.formatMessage(msg)
 
 	al.m.Lock()
+	defer al.m.Unlock()
+
 	_, err := al.dest.Write([]byte(formatted))
-	al.m.Unlock()
-	if errPanic := recover(); err != nil {
-		al.m.Unlock()
-		panic(errPanic)
-	}
+
+	//if errPanic := recover(); err != nil {
+	//	al.m.Unlock()
+	//	panic(errPanic)
+	//}
 	if err != nil {
-		go func() {
+		go func(err error) {
 			al.errorCh <- err
-		}()
+		}(err)
 	}
-	wg.Done()
+
 }
 
 func (al Alog) shutdown() {
@@ -112,8 +110,7 @@ func (al Alog) ErrorChannel() <-chan error {
 // The logger will no longer function after this method has been called.
 func (al Alog) Stop() {
 	al.shutdownCh <- struct{}{}
-	t := <-al.shutdownCompleteCh
-	fmt.Printf("t: %v\n", t)
+	<-al.shutdownCompleteCh
 }
 
 // Write synchronously sends the message to the log output
